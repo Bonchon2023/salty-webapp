@@ -6,8 +6,9 @@
 
 <script setup>
 import { useHead } from '#imports'
+import { onMounted } from 'vue'
 
-// บังคับโหลด Ionicons ใหม่ให้ชัวร์ที่สุด
+// Load Ionicons
 useHead({
   script: [
     { 
@@ -20,4 +21,11 @@ useHead({
     }
   ]
 })
-</script>
+
+// Pre-fetch all products globally once when the app starts.
+// Because useProducts uses useState, this data is shared across all pages.
+const { fetchProducts } = useProducts()
+onMounted(async () => {
+  await fetchProducts()
+})
+</script>
