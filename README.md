@@ -1,6 +1,6 @@
-# Salty Webapp 🍔🍟
+# Salty Webapp 
 
-A modern, fast, and sleek e-commerce web application for snacks and fast food, built with a "Clean Minimalist" web concept and beautiful "Glassmorphism" UI design. 
+A modern, fast, and sleek e-commerce web application for items, built with a "Clean Minimalist" web concept and beautiful "Glassmorphism" UI design. 
 
 ## 🚀 Technologies
 
