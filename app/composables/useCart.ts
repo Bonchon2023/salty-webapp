@@ -10,19 +10,46 @@ export interface CartItem {
 }
 
 export const useCart = () => {
-  // 1. สร้าง Cookie สำหรับจำตะกร้า (ตั้งอายุไว้ 7 วัน)
+  const { isAuthenticated } = useAuth()
+  
+  // 1. Local Persistence
   const cartCookie = useCookie<CartItem[]>('salty_cart', {
     default: () => [],
-    maxAge: 60 * 60 * 24 * 7 // จำไว้ 7 วัน
+    maxAge: 60 * 60 * 24 * 7 
   })
 
-  // 2. ให้ useState ดึงข้อมูลเริ่มต้นมาจาก Cookie
+  // 2. Reactive State
   const cartItems = useState<CartItem[]>('cart', () => cartCookie.value || [])
 
-  // 3. (สำคัญ🌟) คอยเฝ้าดู (Watch) ถ้ามีการเพิ่ม/ลดสินค้า ให้เซฟลง Cookie อัตโนมัติ!
-  watch(cartItems, (newCart) => {
+  // 3. API Synchronization 
+  // Whenever the local cart changes, if we are logged in, sync it to the FakeStore API Cart
+  watch(cartItems, async (newCart) => {
     cartCookie.value = newCart
-  }, { deep: true }) // deep: true คือให้ดูทะลุไปถึงจำนวน quantity ข้างในด้วย
+    
+    // FakeStoreAPI Mock Integration: Update User 1's Cart
+    if (isAuthenticated.value) {
+      try {
+         // Map our local format to the FakeStoreAPI format
+         const apiProducts = newCart.map(item => ({
+           productId: item.id,
+           quantity: item.quantity
+         }))
+
+         await $fetch('https://fakestoreapi.com/carts/1', {
+           method: 'PUT',
+           body: {
+             userId: 1, // Default user
+             date: new Date().toISOString().split('T')[0],
+             products: apiProducts
+           }
+         })
+         // Note: FakeStoreAPI returns 200, but doesn't actually persist the update.
+         // However, this simulates a real-world API PUT operation!
+      } catch (error) {
+         console.error('Failed to sync cart with remote API:', error)
+      }
+    }
+  }, { deep: true }) 
 
   const addToCart = (product: any) => {
     const existingItem = cartItems.value.find(item => item.id === product.id)
@@ -31,9 +58,9 @@ export const useCart = () => {
     } else {
       cartItems.value.push({
         id: product.id,
-        name: product.name,
+        name: product.title,
         price: product.price,
-        imageUrl: product.imageUrl,
+        imageUrl: product.image,
         quantity: 1
       })
     }
@@ -57,7 +84,8 @@ export const useCart = () => {
   const cartTotalPrice = computed(() => {
     return cartItems.value.reduce((total, item) => total + (item.price * item.quantity), 0)
   })
-const clearCart = () => {
+
+  const clearCart = () => {
     cartItems.value = []
   }
 
@@ -68,7 +96,6 @@ const clearCart = () => {
     updateQuantity,
     cartItemCount,
     cartTotalPrice,
-    clearCart // <--- อย่าลืม return ออกมาด้วยนะครับ
+    clearCart 
   }
- 
-}
+}

@@ -7,8 +7,14 @@
         <li><a href="https://www.instagram.com/" class="social-link" target="_blank"><ion-icon name="logo-instagram"></ion-icon></a></li>
       </ul>
       <ul class="account-container">
-        <li><NuxtLink to="/login" class="login-link">Login | Register</NuxtLink></li>
-        <li><NuxtLink to="/account" class="account-link"><ion-icon name="person-circle-outline" class="login-icon"></ion-icon></NuxtLink></li>
+        <template v-if="!isAuthenticated">
+          <li><NuxtLink to="/login" class="login-link">Login | Register</NuxtLink></li>
+          <li><NuxtLink to="/account" class="account-link"><ion-icon name="person-circle-outline" class="login-icon"></ion-icon></NuxtLink></li>
+        </template>
+        <template v-else>
+          <li><NuxtLink to="/account" class="login-link">My Profile</NuxtLink></li>
+          <li><a href="#" @click.prevent="handleLogout" class="account-link" style="color: #ff4d4d; font-size: 0.9rem;">Logout</a></li>
+        </template>
       </ul>
     </div>
     
@@ -50,12 +56,18 @@ import { useRouter } from 'vue-router'
 const searchQuery = ref('')
 const router = useRouter()
 
-// ดึงตัวเลขจำนวนตะกร้ามาจาก useCart
+// Integrations
 const { cartItemCount } = useCart()
+const { isAuthenticated, logout } = useAuth()
 
 const handleSearch = () => {
   if (searchQuery.value.trim()) {
     router.push({ path: '/search', query: { q: searchQuery.value } })
   }
+}
+
+const handleLogout = () => {
+  logout()
+  router.push('/login')
 }
 </script>

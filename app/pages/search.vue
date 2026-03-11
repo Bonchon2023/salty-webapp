@@ -15,7 +15,12 @@
       <span v-else>All Products</span>
     </h2>
 
-    <div v-if="filteredProducts.length > 0" class="all-items-grid">
+    <!-- Loading state -->
+    <div v-if="pending" style="text-align: center; padding: 60px 0;">
+      <p style="color: var(--text-muted); font-size: 1.1rem;">กำลังโหลดสินค้า...</p>
+    </div>
+
+    <div v-else-if="filteredProducts.length > 0" class="all-items-grid">
       <ProductCard 
         v-for="item in filteredProducts" 
         :key="item.id" 
@@ -42,32 +47,39 @@ import { useRoute } from 'vue-router'
 
 const route = useRoute()
 
-// ดึงตัวแปร products ทั้งหมดมาจาก Composable
-const { products } = useProducts()
+// Use useAsyncData to fetch before the component renders on every page visit
+// This works on both direct navigation and client-side routing
+const { data: allProducts, pending } = await useAsyncData(
+  'products', 
+  () => $fetch('https://fakestoreapi.com/products'),
+  { 
+    default: () => [],
+    // cache: true ensures data is not re-fetched if already in state
+    dedupe: 'defer'
+  }
+)
 
-// 1. อ่านค่าจาก URL (?q=... หรือ ?category=...)
+// read URL (?q=... หรือ ?category=...)
 const searchQuery = computed(() => route.query.q || '')
 const categoryQuery = computed(() => route.query.category || '')
 
-// 2. ฟังก์ชันกรองข้อมูลสินค้า (ทำงานอัตโนมัติเมื่อ URL หรือข้อมูลเปลี่ยน)
+// filter products
 const filteredProducts = computed(() => {
-  let result = products.value
+  let result = allProducts.value || []
 
-  // ถ้ามีการพิมพ์คำค้นหาในช่อง Search
   if (searchQuery.value) {
-    const keyword = searchQuery.value.toLowerCase()
-    // ค้นหาจากชื่อสินค้า หรือ รายละเอียดสินค้า
+    const keyword = String(searchQuery.value).toLowerCase()
     result = result.filter(p => 
-      p.name.toLowerCase().includes(keyword) || 
-      p.desc.toLowerCase().includes(keyword)
+      p.title.toLowerCase().includes(keyword) || 
+      p.description.toLowerCase().includes(keyword)
     )
   }
 
-  // ถ้ามีการกดปุ่มเลือก Category
   if (categoryQuery.value) {
-    const cat = categoryQuery.value.toLowerCase()
-    if (cat !== 'allitems') { // ถ้าเป็น allitems ไม่ต้องกรอง ปล่อยผ่านหมด
-      result = result.filter(p => p.category && p.category.includes(cat))
+    const cat = String(categoryQuery.value).toLowerCase()
+    if (cat !== 'allitems') {
+      // Use exact match so "women's clothing" doesn't also match "men's clothing"
+      result = result.filter(p => p.category && p.category.toLowerCase() === cat)
     }
   }
 

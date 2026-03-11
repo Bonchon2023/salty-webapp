@@ -14,7 +14,7 @@
       <aside class="account-sidebar">
         <div class="user-summary">
           <ion-icon name="person-circle-outline" class="user-avatar"></ion-icon>
-          <h3>{{ profile.name }}</h3>
+          <h3>{{ profile.name || 'Loading...' }}</h3>
           <p style="color: #666; font-size: 0.9rem;">{{ profile.email }}</p>
         </div>
         
@@ -35,9 +35,9 @@
             </a>
           </li>
           <li>
-            <NuxtLink to="/login" style="color: #ff4d4d;">
+            <a href="#" @click.prevent="handleLogout" style="color: #ff4d4d;">
               <ion-icon name="log-out-outline"></ion-icon> Logout
-            </NuxtLink>
+            </a>
           </li>
         </ul>
       </aside>
@@ -46,7 +46,10 @@
         
         <div v-show="activeTab === 'profile'" class="tab-content active">
           <h2 class="section-header">Edit Profile</h2>
-          <form class="shipping-form" style="box-shadow: none; padding: 0;" @submit.prevent="saveProfile">
+          
+          <div v-if="isLoading">Loading profile...</div>
+          
+          <form v-else class="shipping-form" style="box-shadow: none; padding: 0;" @submit.prevent="saveProfile">
             <label for="acc-name">Full Name:</label>
             <input type="text" id="acc-name" v-model="profile.name" required>
 
@@ -58,10 +61,13 @@
 
             <div style="margin-top: 20px;">
               <label for="acc-pass">New Password (leave blank to keep current):</label>
-              <input type="password" id="acc-pass" style="width: 100%; padding: 0.8em; border: 1px solid #ccc; border-radius: 6px;">
+              <input type="password" id="acc-pass" v-model="passwordInput" style="width: 100%; padding: 0.8em; border: 1px solid #ccc; border-radius: 6px;">
             </div>
 
-            <button type="submit" class="cta-button" style="margin-top: 20px;">Save Changes</button>
+            <button type="submit" class="cta-button" style="margin-top: 20px;" :disabled="isSaving">
+              {{ isSaving ? 'Saving...' : 'Save Changes' }}
+            </button>
+            <p v-if="saveMessage" style="color: green; margin-top: 10px;">{{ saveMessage }}</p>
           </form>
         </div>
 
@@ -86,20 +92,6 @@
                   <td>฿15,900</td>
                   <td><a href="#" style="color: var(--primary-color);">View</a></td>
                 </tr>
-                <tr>
-                  <td>#ORD-241225</td>
-                  <td>25 Dec 2024</td>
-                  <td><span class="status-badge status-delivered">Delivered</span></td>
-                  <td>฿3,590</td>
-                  <td><a href="#" style="color: var(--primary-color);">View</a></td>
-                </tr>
-                <tr>
-                  <td>#ORD-241111</td>
-                  <td>11 Nov 2024</td>
-                  <td><span class="status-badge status-shipped">Shipped</span></td>
-                  <td>฿2,260</td>
-                  <td><a href="#" style="color: var(--primary-color);">View</a></td>
-                </tr>
               </tbody>
             </table>
           </div>
@@ -111,10 +103,10 @@
             <div class="card-content">
               <h3>Default Shipping Address</h3>
               <p style="color: #666; margin-top: 10px; line-height: 1.6;">
-                {{ profile.name }}<br>
-                123 Silom Road, Bang Rak<br>
-                Bangkok, Thailand 10500<br>
-                Tel: {{ profile.phone || '081-234-5678' }}
+                {{ profile.name || 'Not set' }}<br>
+                {{ addressDetails.street }}, {{ addressDetails.number }}<br>
+                {{ addressDetails.city }}, Zip: {{ addressDetails.zipcode }}<br>
+                Tel: {{ profile.phone || 'Not provided' }}
               </p>
               <button class="cta-button" style="margin-top: 15px; font-size: 0.9rem; padding: 8px 16px;">
                 Edit Address
@@ -129,27 +121,97 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 
-// กำหนด Tab เริ่มต้นเป็นหน้า profile
+const router = useRouter()
+const { logout, isAuthenticated } = useAuth()
+
 const activeTab = ref('profile')
+const isLoading = ref(true)
+const isSaving = ref(false)
+const saveMessage = ref('')
+const passwordInput = ref('')
 
-// ข้อมูลจำลองของผู้ใช้
+// User State (Mapped from FakeStoreAPI)
 const profile = ref({
-  name: 'Guest User',
-  email: 'member@example.com',
-  phone: ''
+  name: '',
+  email: '',
+  phone: '',
+  username: ''
 })
 
-// ฟังก์ชันเวลากดปุ่ม Save Changes
-const saveProfile = () => {
-  alert('Profile updated successfully!')
+const addressDetails = ref({
+  city: '',
+  street: '',
+  number: '',
+  zipcode: ''
+})
+
+// Default mapped ID for FakeStore API
+const userId = 1
+
+onMounted(async () => {
+  if (!isAuthenticated.value) {
+    router.push('/login')
+    return
+  }
+
+  try {
+    const data = await $fetch(`https://fakestoreapi.com/users/${userId}`)
+    
+    if (data) {
+      profile.value.name = `${data.name.firstname} ${data.name.lastname}`
+      profile.value.email = data.email
+      profile.value.phone = data.phone
+      profile.value.username = data.username
+      
+      addressDetails.value = data.address
+    }
+  } catch (error) {
+    console.error('Failed to load user profile:', error)
+  } finally {
+    isLoading.value = false
+  }
+})
+
+const saveProfile = async () => {
+  isSaving.value = true
+  saveMessage.value = ''
+
+  try {
+    // Fake PUT to FakeStoreAPI
+    const [firstname, ...lastnameArr] = profile.value.name.split(' ')
+    const response = await $fetch(`https://fakestoreapi.com/users/${userId}`, {
+      method: 'PUT',
+      body: {
+        email: profile.value.email,
+        username: profile.value.username,
+        password: passwordInput.value || 'existing_pass',
+        name: {
+          firstname: firstname || '',
+          lastname: lastnameArr.join(' ') || ''
+        },
+        address: addressDetails.value,
+        phone: profile.value.phone
+      }
+    })
+
+    if (response) {
+      saveMessage.value = 'Profile updated successfully! (Mock API)'
+      setTimeout(() => { saveMessage.value = '' }, 3000)
+    }
+  } catch (error) {
+    console.error('Error updating profile:', error)
+    alert('Failed to update profile.')
+  } finally {
+    isSaving.value = false
+  }
+}
+
+const handleLogout = () => {
+  logout()
+  router.push('/login')
 }
 </script>
-
-<style scoped>
-/* ทำให้เวลาเมาส์ชี้ที่แท็บแล้วเป็นรูปนิ้วคลิก */
-.sidebar-menu a {
-  transition: all 0.3s ease;
-}
-</style>
+
